@@ -39,6 +39,7 @@ public:
     void update(std::istream &is);
     std::string final();
     static std::string from_file(const std::string &filename);
+    static std::string from_string(const std::string &str);
 
 private:
     uint32_t digest[5];
@@ -321,6 +322,11 @@ inline std::string SHA1::final()
     return result.str();
 }
 
+inline std::string SHA1::from_string(const std::string &str) {
+    SHA1 checksum;
+    checksum.update(str);
+    return checksum.final();
+}
 
 inline std::string SHA1::from_file(const std::string &filename)
 {

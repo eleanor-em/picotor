@@ -18,7 +18,8 @@ SingleFileTorrent::SingleFileTorrent(const string_view &data) {
         _piece_hashes.emplace_back(it);
     }
 
-    // re-encode info dict, so we can compute its hash
+    // re-encode info dict, so we can compute its hash. as far as I can tell this bencode lib
+    // doesn't have a more efficient way to do it
     const auto info_str = bencode::encode(info);
-    _info_hash = cmn::Hash::from(info_str);
+    _info_hash = cmn::Hash::of(info_str);
 }

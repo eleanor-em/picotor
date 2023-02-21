@@ -3,39 +3,47 @@
 #include <string>
 #include <fstream>
 #include <cstring>
+#include <vector>
 #include <iomanip>
 #include <sha1.hpp>
 
 namespace cmn {
-// https://gist.github.com/klmr/849cbb0c6e872dff0fdcc54787a66103
     auto read_file(std::string_view path) -> std::string;
+    std::string urlencode(const std::vector<char>& s);
+    std::string urlencode(const std::string& s);
+    std::vector<char> hex_to_bytes(const std::string& hex);
 
     const size_t HASH_SIZE = 20; // bytes
 
-    struct Hash {
-        static Hash from(const std::string& str) {
-            SHA1 hash;
-            hash.update(str);
-            return Hash(str.c_str());
-        }
+    class Hash {
+    public:
+        static Hash of(const std::string& str);
 
-        // constructor so I can use emplace
-        explicit Hash(const char *ptr) {
-            std::memcpy(data, ptr, HASH_SIZE);
+        // constructors so we can use emplace
+        explicit Hash(const std::vector<char>&& vec): _bytes(vec) {}
+        explicit Hash(const std::vector<char>& vec): _bytes(vec) {}
+        explicit Hash(const char *bytes) {
+            _bytes.reserve(HASH_SIZE);
+            std::copy(bytes, bytes + HASH_SIZE, _bytes.begin());
         }
 
         Hash() = default;
 
-        [[nodiscard]] std::string as_str() const {
+        [[nodiscard]] std::string as_hex() const {
             std::ostringstream ss;
             ss << std::hex << std::setfill('0');
-            for (auto i : data) {
-                ss << std::setw(2) << (int) i;
+            int foo = 0;
+            for (auto i : _bytes) {
+                ss << std::setw(2) << (int)(uint8_t)(i);
             }
             return ss.str();
         }
 
-        uint8_t data[HASH_SIZE]{};
+        [[nodiscard]] const std::vector<char>& as_bytes() const {
+            return _bytes;
+        }
+    private:
+        std::vector<char> _bytes;
     };
 }
 #endif

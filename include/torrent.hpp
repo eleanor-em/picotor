@@ -28,8 +28,12 @@ public:
         return _filename;
     }
 
-    [[nodiscard]] string info_hash() const {
-        return _info_hash.as_str();
+    [[nodiscard]] const cmn::Hash& info_hash() const {
+        return _info_hash;
+    }
+
+    [[nodiscard]] size_t file_length() const {
+        return _file_length;
     }
 
 private:
