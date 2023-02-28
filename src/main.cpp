@@ -1,15 +1,18 @@
 #include <iostream>
 #include <string>
+#include <sys/socket.h>
+#include <boost/asio.hpp>
+#include <boost/bind/bind.hpp>
 #include "torrent.hpp"
 #include "httprequest.hpp"
 
 using namespace std;
-const char *filename = "../misc/debian.torrent";
-const char *peer_id = "PCT001k1k1k1k1k1k1k1";
+const char *tor_file = "../misc/debian.torrent";
+const char *peer_id = "-pt0001-0123456789ab";
+const char *resp_file = "../misc/response.bc";
 const uint16_t port = 6881;
 
-int main () {
-    auto tor = SingleFileTorrent::from_file(filename);
+TrackerResponse send_request(const SingleFileTorrent& tor) {
     cout << tor.filename() << " (" << tor.info_hash().as_hex() << ") @ " << tor.announce() << "\n";
 
     stringstream request;
@@ -21,10 +24,25 @@ int main () {
             << "downloaded=" << "0" << "&"
             << "compact=" << "1" << "&"
             << "left=" << tor.file_length();
-
     cout << "sending request: " << request.str() << "\n";
     http::Request req{request.str()};
     const auto response = req.send("GET");
-    cout << "response: " << string{response.body.begin(), response.body.end()} << "\n";
-    return 0;
+    return TrackerResponse{string{response.body.begin(), response.body.end()}};
+}
+
+void parse_response(const SingleFileTorrent& tor, const TrackerResponse& response) {
+    const auto handshake = Handshake{tor.info_hash(), peer_id};
+    const auto handshake_data = handshake.serialise();
+    boost::asio::io_context io;
+    vector<shared_ptr<HandshakePeer>> peers;
+    for (const auto& addr : response.peers()) {
+        peers.emplace_back(make_shared<HandshakePeer>(addr, io, handshake_data));
+    }
+    io.run();
+}
+
+int main () {
+    auto tor = SingleFileTorrent::from_file(tor_file);
+    auto response = send_request(tor);
+    parse_response(tor, response);
 }
