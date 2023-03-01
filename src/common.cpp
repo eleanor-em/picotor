@@ -3,15 +3,18 @@
 //
 #include "common.hpp"
 #include <vector>
+#include <iostream>
+
+using namespace std;
 
 // https://gist.github.com/klmr/849cbb0c6e872dff0fdcc54787a66103
-std::string cmn::read_file(std::string_view path) {
-    constexpr auto read_size = std::size_t{4096};
-    auto stream = std::ifstream{path.data()};
-    stream.exceptions(std::ios_base::badbit);
+string cmn::read_file(string_view path) {
+    constexpr auto read_size = size_t{4096};
+    auto stream = ifstream{path.data()};
+    stream.exceptions(ios_base::badbit);
 
-    auto out = std::string{};
-    auto buf = std::string(read_size, '\0');
+    auto out = string{};
+    auto buf = string(read_size, '\0');
     while (stream.read(&buf[0], read_size)) {
         out.append(buf, 0, stream.gcount());
     }
@@ -27,13 +30,13 @@ void hexchar(unsigned char c, unsigned char &hex1, unsigned char &hex2) {
     hex2 += hex2 <= 9 ? '0' : 'a' - 10;
 }
 
-std::string cmn::urlencode(const std::vector<char>& s) {
-    return cmn::urlencode(std::string{s.begin(), s.end()});
+string cmn::urlencode(const vector<char>& s) {
+    return cmn::urlencode(string{s.begin(), s.end()});
 }
 
-std::string cmn::urlencode(const std::string &s) {
+string cmn::urlencode(const string &s) {
     const char *str = s.c_str();
-    std::vector<char> v;
+    vector<char> v;
     v.reserve(s.size());
     for (size_t i = 0, l = s.size(); i < l; i++) {
         char c = str[i];
@@ -54,12 +57,12 @@ std::string cmn::urlencode(const std::string &s) {
         }
     }
 
-    return std::string(v.cbegin(), v.cend());
+    return string(v.cbegin(), v.cend());
 }
 
 // https://stackoverflow.com/questions/17261798/converting-a-hex-string-to-a-byte-array
-std::vector<char> cmn::hex_to_bytes(const std::string &hex) {
-    std::vector<char> bytes;
+vector<char> cmn::hex_to_bytes(const string &hex) {
+    vector<char> bytes;
     bytes.reserve(hex.length() / 2);
 
     for (unsigned int i = 0; i < hex.length(); i += 2) {
@@ -71,6 +74,41 @@ std::vector<char> cmn::hex_to_bytes(const std::string &hex) {
     return bytes;
 }
 
-cmn::Hash cmn::Hash::of(const std::string &str) {
+cmn::Hash cmn::Hash::of(const string &str) {
     return cmn::Hash(cmn::hex_to_bytes(SHA1::from_string(str)));
+}
+
+string cmn::Hash::as_hex() const {
+    ostringstream ss;
+    ss << hex << setfill('0');
+    for (auto i : bytes_) {
+        ss << setw(2) << (int)(uint8_t)(i);
+    }
+    return ss.str();
+}
+
+cmn::Address cmn::Address::from_str(const char *str) {
+    stringstream ss{str};
+    char ch;
+    uint16_t port, a, b, c, d;
+    ss >> a >> ch >> b >> ch >> c >> ch >> d >> ch >> port;
+    Address addr;
+    addr.raw = (a << 24) | (b << 16) | (c << 8) | (d);
+    addr.port = port;
+    return addr;
+}
+
+string cmn::Address::ip() const {
+    stringstream ss;
+    ss << ((raw >> 24) & 0xff) << "."
+       << ((raw >> 16) & 0xff) << "."
+       << ((raw >> 8) & 0xff) << "."
+       << (raw & 0xff);
+    return ss.str();
+}
+
+string cmn::Address::port_str() const {
+    stringstream ss;
+    ss << port;
+    return ss.str();
 }

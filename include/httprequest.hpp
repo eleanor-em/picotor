@@ -399,7 +399,7 @@ namespace http
                                     static_cast<int>(length), 0);
 
                 if (result == -1)
-                    throw std::system_error{WSAGetLastError(), std::system_category(), "Failed to read data"};
+                    throw std::system_error{WSAGetLastError(), std::system_category(), "Failed to handle_message data"};
 #else
                 auto result = ::recv(endpoint, reinterpret_cast<char*>(buffer),
                                      length, noSignal);
@@ -409,7 +409,7 @@ namespace http
                                     length, noSignal);
 
                 if (result == -1)
-                    throw std::system_error{errno, std::system_category(), "Failed to read data"};
+                    throw std::system_error{errno, std::system_category(), "Failed to handle_message data"};
 #endif // defined(_WIN32) || defined(__CYGWIN__)
                 return static_cast<std::size_t>(result);
             }
@@ -440,7 +440,7 @@ namespace http
 
                 while (count == -1 && WSAGetLastError() == WSAEINTR)
                     count = ::select(0,
-                                     (type == SelectType::read) ? &descriptorSet : nullptr,
+                                     (type == SelectType::handle_message) ? &descriptorSet : nullptr,
                                      (type == SelectType::write) ? &descriptorSet : nullptr,
                                      nullptr,
                                      (timeout >= 0) ? &selectTimeout : nullptr);
@@ -1070,7 +1070,7 @@ namespace http
             std::size_t expectedChunkSize = 0U;
             bool removeCrlfAfterChunk = false;
 
-            // read the response
+            // handle_message the response
             for (;;)
             {
                 const auto size = socket.recv(tempBuffer.data(), tempBuffer.size(),

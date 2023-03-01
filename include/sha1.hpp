@@ -316,7 +316,7 @@ inline std::string SHA1::final()
         result << digest[i];
     }
 
-    /* Reset for next run */
+    /* Reset for async_next run */
     reset(digest, buffer, transforms);
 
     return result.str();

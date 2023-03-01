@@ -1,10 +1,10 @@
 #include <iostream>
 #include <string>
-#include <sys/socket.h>
 #include <boost/asio.hpp>
 #include <boost/bind/bind.hpp>
 #include "torrent.hpp"
 #include "httprequest.hpp"
+#include "message.hpp"
 
 using namespace std;
 const char *tor_file = "../misc/debian.torrent";
@@ -34,9 +34,9 @@ void parse_response(const SingleFileTorrent& tor, const TrackerResponse& respons
     const auto handshake = Handshake{tor.info_hash(), peer_id};
     const auto handshake_data = handshake.serialise();
     boost::asio::io_context io;
-    vector<shared_ptr<HandshakePeer>> peers;
+    vector<shared_ptr<Peer>> peers;
     for (const auto& addr : response.peers()) {
-        peers.emplace_back(make_shared<HandshakePeer>(addr, io, handshake_data));
+        peers.emplace_back(make_shared<Peer>(addr, io, handshake_data));
     }
     io.run();
 }
