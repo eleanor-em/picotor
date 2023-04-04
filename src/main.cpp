@@ -1,7 +1,7 @@
 #include <iostream>
-#include <string>
 #include <boost/asio.hpp>
 #include <boost/bind/bind.hpp>
+#include <boost/lockfree/queue.hpp>
 #include "torrent.hpp"
 #include "httprequest.hpp"
 #include "message.hpp"
@@ -9,7 +9,6 @@
 using namespace std;
 const char *tor_file = "../misc/debian.torrent";
 const char *peer_id = "-pt0001-0123456789ab";
-const char *resp_file = "../misc/response.bc";
 const uint16_t port = 6881;
 
 TrackerResponse send_request(const SingleFileTorrent& tor) {
@@ -34,10 +33,22 @@ void parse_response(const SingleFileTorrent& tor, const TrackerResponse& respons
     const auto handshake = Handshake{tor.info_hash(), peer_id};
     const auto handshake_data = handshake.serialise();
     boost::asio::io_context io;
-    vector<shared_ptr<Peer>> peers;
-    for (const auto& addr : response.peers()) {
-        peers.emplace_back(make_shared<Peer>(addr, io, handshake_data));
+
+    // Initialise queues
+    auto work_queue = make_shared<boost::lockfree::queue<uint32_t>>(tor.pieces());
+    auto result_queue = make_shared<boost::lockfree::queue<cmn::CompletePiece>>(tor.pieces());
+
+    // work_queue initially contains every piece
+    for (uint32_t i = 0; i < tor.pieces(); ++i) {
+        while (!work_queue->push(i));
     }
+
+    vector<shared_ptr<Peer>> peers;
+    TorrentContext ctx{io, handshake_data, tor, work_queue, result_queue};
+    for (auto& peer_address : response.peers()) {
+        peers.emplace_back(make_shared<Peer>(ctx, peer_address));
+    }
+    std::thread writer_thread{[&]() { write_thread(ctx); }};
     io.run();
 }
 

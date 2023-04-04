@@ -5,10 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(picotor src/main.cpp include/sha1.hpp include/torrent.hpp src/torrent.cpp src/common.cpp include/httprequest.hpp include/message.hpp src/message.cpp)
 
-include_directories(include)
+include_directories(include /usr/local/include)
 
 find_library(PTHREAD pthread)
-find_library(BOOST_THREAD boost_thread)
-target_link_libraries(picotor PUBLIC ${PTHREAD} ${BOOST_THREAD})
+target_link_libraries(picotor PUBLIC ${PTHREAD})
 
 add_compile_options(-Wall -Wextra -Wpedantic)

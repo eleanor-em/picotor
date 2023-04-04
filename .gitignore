@@ -1,1 +1,7 @@
 cmake-build-debug/
+cmake-build-release/
+CMakeFiles/
+misc/
+Makefile
+cmake_install.cmake
+.DS_Store

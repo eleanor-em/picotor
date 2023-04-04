@@ -75,7 +75,7 @@ vector<char> cmn::hex_to_bytes(const string &hex) {
 }
 
 cmn::Hash cmn::Hash::of(const string &str) {
-    return cmn::Hash(cmn::hex_to_bytes(SHA1::from_string(str)));
+    return cmn::Hash{cmn::hex_to_bytes(SHA1::from_string(str))};
 }
 
 string cmn::Hash::as_hex() const {
@@ -85,17 +85,6 @@ string cmn::Hash::as_hex() const {
         ss << setw(2) << (int)(uint8_t)(i);
     }
     return ss.str();
-}
-
-cmn::Address cmn::Address::from_str(const char *str) {
-    stringstream ss{str};
-    char ch;
-    uint16_t port, a, b, c, d;
-    ss >> a >> ch >> b >> ch >> c >> ch >> d >> ch >> port;
-    Address addr;
-    addr.raw = (a << 24) | (b << 16) | (c << 8) | (d);
-    addr.port = port;
-    return addr;
 }
 
 string cmn::Address::ip() const {
