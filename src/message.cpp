@@ -1,13 +1,14 @@
 //
 // Created by eleanor on 28.02.23.
 //
-#include <message.hpp>
 #include <iostream>
+
+#include <message.hpp>
 
 using namespace std;
 
-Handshake::Handshake(const string&& data) {
-    stringstream ss{data};
+Handshake::Handshake(const vector<char>& data) {
+    stringstream ss{string{data.begin(), data.end()}};
 
     // handle_message protocol description
     uint8_t len;
@@ -60,10 +61,10 @@ Message::Message(const vector<char>& data) {
 
 string Message::to_string() const {
     if (type) {
-        string result = type_to_string(type.value()) + "{";
+        string result = type_to_string(*type) + "{";
 
         std::stringstream ss;
-        switch (type.value()) {
+        switch (*type) {
             case Piece:
             case Request:
                 uint32_t index;
@@ -73,7 +74,9 @@ string Message::to_string() const {
                 index = ntohl(index);
                 ss.read(reinterpret_cast<char*>(&offset), 4);
                 offset = ntohl(offset);
-                result += ::to_string(index) + "," + ::to_string(offset) + "-" + ::to_string(offset + cmn::BLOCK_SIZE - 1);
+                result += ::to_string(index) + ","
+                        + ::to_string(offset) + "-"
+                        + ::to_string(offset + BLOCK_SIZE - 1);
                 break;
 
             default:
@@ -88,7 +91,7 @@ string Message::to_string() const {
 
 vector<char> Message::serialize() const {
     assert(type.has_value());
-    uint8_t ty = static_cast<char>(type.value());
+    uint8_t ty = static_cast<char>(*type);
     uint32_t len = htonl(payload.size() + 1);
 
     stringstream ss;

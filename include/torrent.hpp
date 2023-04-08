@@ -4,18 +4,20 @@
 
 #ifndef PICOTOR_TORRENT_HPP
 #define PICOTOR_TORRENT_HPP
-#include <common.hpp>
+#include <optional>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
 #include <boost/asio.hpp>
+
 #include <boost/lockfree/queue.hpp>
-#include "message.hpp"
+#include <common.hpp>
 
 namespace ba = boost::asio;
 using ba::ip::tcp;
 using namespace std;
-
-static uint32_t PIPELINE_LIMIT = 5;
 
 class SingleFileTorrent {
 public:
@@ -74,66 +76,170 @@ private:
     vector<cmn::Address> peers_;
 };
 
+const uint32_t BLOCK_SIZE = 1<<14;
+
+enum BlockStatus {
+    Ok,
+    AlreadyFilled,
+    WrongPiece,
+    WrongOffset,
+    TooMuchData,
+};
+
+inline const char* block_status_string(BlockStatus status) {
+    switch (status) {
+        case Ok:
+            return "Ok";
+        case AlreadyFilled:
+            return "AlreadyFilled";
+        case WrongPiece:
+            return "WrongPiece";
+        case WrongOffset:
+            return "WrongOffset";
+        case TooMuchData:
+            return "TooMuchData";
+    }
+}
+
+class Block {
+public:
+    Block(uint32_t piece, uint32_t offset): piece_(piece), offset_(offset) {}
+    bool filled() const { return filled_; }
+    uint32_t offset() const { return offset_; }
+    uint32_t index() const { return offset_ / BLOCK_SIZE; }
+    void release() { reserved_ = false; }
+
+private:
+    bool filled_ = false;
+    bool reserved_ = false;
+    char data_[BLOCK_SIZE];
+    size_t len_;
+    uint32_t piece_;
+    uint32_t offset_;
+
+    BlockStatus fill(stringstream& ss, size_t len) {
+        if (filled_) return BlockStatus::AlreadyFilled;
+        ss.read(data_, len);
+        len_ = len;
+        filled_ = true;
+        return BlockStatus::Ok;
+    }
+
+    friend class Piece;
+};
+
+class CompletePiece {
+public:
+    CompletePiece(): data_(nullptr), piece_index_(0), size_(0) {}
+    CompletePiece(char* data, uint32_t piece_index, uint32_t size)
+            : data_(data), piece_index_(piece_index), size_(size) {}
+
+    [[nodiscard]] cmn::Hash hash() const { return cmn::Hash::of(std::string{data_, size_}); }
+    void free() { delete[] data_; }
+
+    char* data() const { return data_; }
+    uint32_t index() const { return piece_index_; }
+    uint32_t offset() const { return piece_index_ * size_; }
+    uint32_t size() const { return size_; }
+private:
+    char* data_;
+    uint32_t piece_index_;
+    uint32_t size_;
+};
+
+class Piece {
+public:
+    Piece(uint32_t index, uint32_t piece_size): index_(index), piece_size_(piece_size) {}
+
+    uint32_t index() const { return index_; }
+    uint32_t size() const { return piece_size_; }
+
+    std::pair<BlockStatus, uint32_t> accept(const std::vector<char>& payload) {
+        // 8 bytes used for initial data
+        uint32_t data_len = payload.size() - 8;
+        std::stringstream ss;
+        ss.write(payload.data(), payload.size());
+
+        uint32_t piece_index;
+        uint32_t offset;
+        ss.read(reinterpret_cast<char*>(&piece_index), 4);
+        piece_index = ntohl(piece_index);
+        ss.read(reinterpret_cast<char*>(&offset), 4);
+        auto block_index = ntohl(offset) / BLOCK_SIZE;
+
+        if (data_len > BLOCK_SIZE) return std::pair{BlockStatus::TooMuchData, block_index};
+        if (piece_index != index_) return std::pair{BlockStatus::WrongPiece, block_index};
+        if (block_index >= blocks_.size()) return std::pair{BlockStatus::WrongOffset, block_index};
+        return std::pair{blocks_[block_index]->fill(ss, data_len), block_index};
+    }
+
+    std::shared_ptr<Block> next_block() {
+        if (blocks_.size() < block_count()) {
+            // if there's a block we haven't started yet, give them that
+            auto offset = static_cast<uint32_t>(blocks_.size() * BLOCK_SIZE);
+            blocks_.push_back(std::make_shared<Block>(index_, offset));
+            auto block = *(blocks_.end() - 1);
+            block->reserved_ = true;
+            return block;
+        } else {
+            // otherwise, look for one that's not reserved
+            for (auto& block : blocks_) {
+                if (!block->filled_ && !block->reserved_) {
+                    block->reserved_ = true;
+                    return block;
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    bool is_complete() const {
+        auto all_filled = std::all_of(blocks_.cbegin(), blocks_.cend(),
+                                      [](auto block) { return block->filled(); });
+        return blocks_.size() == block_count() && all_filled;
+    }
+
+    CompletePiece finalize() {
+        if (!finalized_) {
+            char *data = new char[piece_size_];
+            char *ptr = data;
+
+            for (const auto &block: blocks_) {
+                std::copy(block->data_, block->data_ + block->len_, ptr);
+                ptr += block->len_;
+            }
+
+            finalized_ = CompletePiece{data, index_, piece_size_};
+        }
+        return *finalized_;
+    }
+
+private:
+    uint32_t index_;
+    uint32_t piece_size_;
+    std::vector<std::shared_ptr<Block>> blocks_;
+
+    // cached result
+    optional<CompletePiece> finalized_;
+
+    uint32_t block_count() const {
+        if (piece_size_ % BLOCK_SIZE == 0) {
+            return piece_size_ / BLOCK_SIZE;
+        } else {
+            return piece_size_ / BLOCK_SIZE + 1;
+        }
+    }
+};
+
+#include <result.hpp>
+
 struct TorrentContext {
     ba::io_context& io;
     const vector<char>& handshake;
     const SingleFileTorrent& tor;
     shared_ptr<boost::lockfree::queue<uint32_t>> work_queue;
-    shared_ptr<boost::lockfree::queue<cmn::CompletePiece>> result_queue;
+    shared_ptr<boost::lockfree::queue<Result>> result_queue;
+    size_t total_peers;
 };
-
-class Peer: public enable_shared_from_this<Peer> {
-public:
-    Peer(const TorrentContext& ctx, cmn::Address addr);
-
-private:
-    void async_handshake_write(const boost::system::error_code& ec);
-    void async_handshake_read(const boost::system::error_code& ec);
-
-    void async_next(const boost::system::error_code& ec);
-
-    void async_read_message();
-
-    void async_read_len(const boost::system::error_code& ec);
-    void handle_message();
-
-    void begin_continue_piece();
-    void request_block();
-
-    void write_message(const Message& msg) { write_message(msg, [](auto& ec, auto _) {}); }
-
-
-    void release_block() {
-        --active_blocks_;
-        if (block_) block_->release();
-        block_ = nullptr;
-    }
-
-    template <class T>
-    void write_message(const Message& msg, const T& handler) {
-        ba::async_write(socket_, ba::buffer(msg.serialize()), handler);
-    }
-
-    ostream& log() const {
-        return cout << "[" << (peer_id_.empty() ? addr_.to_string() : cmn::urlencode(peer_id_)) << "] ";
-    }
-
-    const vector<char>& handshake_;
-    const SingleFileTorrent& tor_;
-    vector<char> recv_buffer_;
-    tcp::socket socket_;
-    cmn::Address addr_;
-    string peer_id_;
-    bool choked_ = true;
-    cmn::Bitfield available_pieces_;
-
-    shared_ptr<boost::lockfree::queue<uint32_t>> work_queue_;
-    shared_ptr<boost::lockfree::queue<cmn::CompletePiece>> result_queue_;
-    optional<cmn::Piece> piece_;
-    shared_ptr<cmn::Block> block_;
-    uint32_t active_blocks_ = 0;
-};
-
-void write_thread(const TorrentContext& ctx);
 
 #endif //PICOTOR_TORRENT_HPP

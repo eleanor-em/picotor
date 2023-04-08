@@ -1,12 +1,15 @@
 //
 // Created by eleanor on 28.02.23.
 //
-
 #ifndef PICOTOR_MESSAGE_HPP
 #define PICOTOR_MESSAGE_HPP
-#include <common.hpp>
+
 #include <string>
+
 #include <boost/asio.hpp>
+
+#include <common.hpp>
+#include <torrent.hpp>
 
 using namespace std;
 namespace ba = boost::asio;
@@ -20,7 +23,7 @@ struct Handshake {
 
     Handshake(cmn::Hash hash, const char* id): info_hash(hash), peer_id(id) {}
 
-    explicit Handshake(const string&& data);
+    explicit Handshake(const vector<char>& data);
 
     vector<char> serialise() const;
 };
@@ -39,13 +42,18 @@ struct Message {
         Extension = 20,
     };
 
+    explicit Message(const vector<char>& data);
+
     [[nodiscard]] static string type_to_string(Type type);
     [[nodiscard]] static optional<Type> try_from(uint8_t src);
-    [[nodiscard]] static Message interested() { return Message{Message::Type::Interested, vector<char>{}}; }
-    [[nodiscard]] static Message request(const cmn::Piece& piece, const cmn::Block& block) {
+
+    [[nodiscard]] static Message interested() {
+        return Message{Message::Type::Interested, vector<char>{}};
+    }
+    [[nodiscard]] static Message request(const class::Piece& piece, const Block& block) {
         uint32_t piece_index = htonl(piece.index());
         uint32_t block_offset = htonl(block.offset());
-        uint32_t block_length = htonl(std::min(piece.size() - block.offset(), cmn::BLOCK_SIZE));
+        uint32_t block_length = htonl(std::min(piece.size() - block.offset(), BLOCK_SIZE));
         stringstream ss;
         ss.write(reinterpret_cast<const char*>(&piece_index), 4);
         ss.write(reinterpret_cast<const char*>(&block_offset), 4);
@@ -54,13 +62,12 @@ struct Message {
         return Message{Message::Type::Request, vector<char>{str.begin(), str.end()}};
     }
 
+    [[nodiscard]] string to_string() const;
+    [[nodiscard]] vector<char> serialize() const;
+
     optional<Type> type;
     vector<char> payload;
 
-    explicit Message(const vector<char>& data);
-
-    [[nodiscard]] string to_string() const;
-    [[nodiscard]] vector<char> serialize() const;
 private:
     Message(Message::Type type_, vector<char> payload_): type(type_), payload(payload_) {}
 };

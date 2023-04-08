@@ -1,9 +1,10 @@
 //
 // Created by eleanor on 20.02.23.
 //
-#include "common.hpp"
-#include <vector>
 #include <iostream>
+#include <vector>
+
+#include <common.hpp>
 
 using namespace std;
 
