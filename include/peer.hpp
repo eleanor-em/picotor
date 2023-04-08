@@ -12,6 +12,18 @@
 #include <message.hpp>
 #include <torrent.hpp>
 
+using std::cout;
+using std::ostream;
+using std::unique_ptr;
+using std::unordered_map;
+
+using namespace std::chrono_literals;
+namespace chrono = std::chrono;
+namespace bs = boost::system;
+
+using cmn::Address;
+using cmn::Bitfield;
+
 class Peer {
 public:
     Peer(const TorrentContext& ctx, cmn::Address addr);
@@ -20,11 +32,11 @@ private:
     // handshake_write -> handshake_read -> next
     // -> read_message -> read_len -> handle_message
     // -> read_message -> ...
-    void async_handshake_write(const boost::system::error_code& ec);
-    void async_handshake_read(const boost::system::error_code& ec);
-    void async_next(const boost::system::error_code& ec);
+    void async_handshake_write(const bs::error_code& ec);
+    void async_handshake_read(const bs::error_code& ec);
+    void async_next(const bs::error_code& ec);
     void async_read_message();
-    void async_read_len(const boost::system::error_code& ec);
+    void async_read_len(const bs::error_code& ec);
     void async_handle_message();
 
     void async_download();
@@ -60,14 +72,14 @@ private:
         while (!ctx_.result_queue->push(ResultPeerDropped{addr_}));
     }
 
-    ostream& log() const {
+    [[nodiscard]] ostream& log() const {
         return cout << "[" << (peer_id_.empty() ? addr_.to_string() : cmn::urlencode(peer_id_)) << "] ";
     }
 
     // parameters
     const uint32_t PIPELINE_LIMIT = 5;
-    const uint32_t TIMEOUT_MS = 2000;
-    const cmn::Address addr_;
+    const chrono::milliseconds TIMEOUT_MS = 7500ms;
+    const Address addr_;
     const TorrentContext& ctx_;
 
     // networking data
@@ -77,7 +89,7 @@ private:
 
     // protocol data
     bool choked_ = true;
-    cmn::Bitfield available_pieces_;
+    Bitfield available_pieces_;
     optional<Piece> piece_;
     unordered_map<uint32_t, shared_ptr<Block>> blocks_;
 

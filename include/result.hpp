@@ -8,18 +8,21 @@
 #include <torrent.hpp>
 #include <variant>
 
+using std::variant;
+using cmn::Address;
+
 struct ResultPieceComplete {
     CompletePiece piece;
 };
 
 struct ResultPeerConnected {
-    cmn::Address addr;
+    Address addr;
 };
 
 struct ResultPeerDropped {
-    cmn::Address addr;
+    Address addr;
 };
 
-typedef std::variant<ResultPieceComplete, ResultPeerConnected, ResultPeerDropped> Result;
+typedef variant<ResultPieceComplete, ResultPeerConnected, ResultPeerDropped> Result;
 
 #endif //PICOTOR_RESULT_HPP

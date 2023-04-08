@@ -10,10 +10,12 @@
 #include <peer.hpp>
 #include <result.hpp>
 
-using namespace std;
 const char *tor_file = "../misc/debian.torrent";
 const char *peer_id = "-pt0001-0123456789ab";
 const uint16_t port = 6881;
+
+using std::make_shared;
+using std::make_unique;
 
 TrackerResponse send_request(const SingleFileTorrent& tor) {
     cout << tor.filename() << " (" << tor.info_hash().as_hex() << ") @ " << tor.announce() << "\n";
@@ -35,7 +37,7 @@ TrackerResponse send_request(const SingleFileTorrent& tor) {
 
 void start_run_connections(const SingleFileTorrent& tor, const TrackerResponse& response) {
     const auto handshake = Handshake{tor.info_hash(), peer_id}.serialise();
-    boost::asio::io_context io;
+    ba::io_context io;
 
     // initialise queues
     auto work_queue = make_shared<boost::lockfree::queue<uint32_t>>(tor.pieces());
@@ -46,7 +48,7 @@ void start_run_connections(const SingleFileTorrent& tor, const TrackerResponse& 
         while (!work_queue->push(i));
     }
 
-    auto peers = std::make_unique<vector<Peer>>();
+    auto peers = make_unique<vector<Peer>>();
     peers->reserve(response.peers().size());
     TorrentContext ctx{io, handshake, tor, work_queue, result_queue, response.peers().size()};
     for (auto& peer_address : response.peers()) {

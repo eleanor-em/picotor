@@ -6,13 +6,18 @@
 
 #include <common.hpp>
 
-using namespace std;
+using std::string;
+using std::string_view;
+using std::vector;
+using std::ifstream;
+using std::ostringstream;
+using std::stringstream;
 
 // https://gist.github.com/klmr/849cbb0c6e872dff0fdcc54787a66103
 string cmn::read_file(string_view path) {
     constexpr auto read_size = size_t{4096};
     auto stream = ifstream{path.data()};
-    stream.exceptions(ios_base::badbit);
+    stream.exceptions(std::ios_base::badbit);
 
     auto out = string{};
     auto buf = string(read_size, '\0');
@@ -58,7 +63,7 @@ string cmn::urlencode(const string &s) {
         }
     }
 
-    return string(v.cbegin(), v.cend());
+    return string{v.cbegin(), v.cend()};
 }
 
 // https://stackoverflow.com/questions/17261798/converting-a-hex-string-to-a-byte-array
@@ -68,7 +73,7 @@ vector<char> cmn::hex_to_bytes(const string &hex) {
 
     for (unsigned int i = 0; i < hex.length(); i += 2) {
         auto byteString = hex.substr(i, 2);
-        char byte = (char) strtol(byteString.c_str(), NULL, 16);
+        char byte = (char) strtol(byteString.c_str(), nullptr, 16);
         bytes.emplace_back(byte);
     }
 
@@ -81,9 +86,9 @@ cmn::Hash cmn::Hash::of(const string &str) {
 
 string cmn::Hash::as_hex() const {
     ostringstream ss;
-    ss << hex << setfill('0');
+    ss << std::hex << std::setfill('0');
     for (auto i : bytes_) {
-        ss << setw(2) << (int)(uint8_t)(i);
+        ss << std::setw(2) << static_cast<int>(static_cast<uint8_t>(i));
     }
     return ss.str();
 }

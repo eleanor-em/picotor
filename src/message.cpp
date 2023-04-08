@@ -5,9 +5,14 @@
 
 #include <message.hpp>
 
-using namespace std;
+using std::cout;
+using std::endl;
+using std::nullopt;
 
-Handshake::Handshake(const vector<char>& data) {
+using cmn::Hash;
+using cmn::HASH_SIZE;
+
+Handshake::Handshake(const vector<char>& data): extensions{0} {
     stringstream ss{string{data.begin(), data.end()}};
 
     // handle_message protocol description
@@ -16,36 +21,36 @@ Handshake::Handshake(const vector<char>& data) {
     char desc[len + 1];
     desc[len] = 0;
     ss.read(desc, len);
-    if (desc != pstr) {
+    if (desc != protocol_str) {
         cout << "NOTE: unexpected protocol string: " << desc << endl;
     }
 
     // handle_message extensions
     ss.read(extensions, sizeof(extensions));
 
-    // handle_message infohash
-    char hash[cmn::HASH_SIZE];
+    // handle_message info hash
+    char hash[HASH_SIZE];
     ss.read(hash, sizeof(hash));
-    info_hash = cmn::Hash{hash};
+    info_hash = Hash{hash};
 
     // handle_message peer id
-    char c = ss.get();
+    auto c = ss.get();
     while (!ss.eof()) {
-        peer_id += c;
+        peer_id += static_cast<char>(c);
         c = ss.get();
     }
 }
 
 vector<char> Handshake::serialise() const {
     stringstream ss;
-    char len = pstr.length();
+    char len = static_cast<char>(protocol_str.length());
     ss.write(&len, 1);
-    ss << pstr;
+    ss << protocol_str;
 
     ss.write(extensions, sizeof(extensions));
 
     auto hash = info_hash.as_bytes();
-    ss.write(hash.data(), hash.size());
+    ss.write(hash.data(), static_cast<std::streamsize>(hash.size()));
 
     ss << peer_id;
 
@@ -63,20 +68,20 @@ string Message::to_string() const {
     if (type) {
         string result = type_to_string(*type) + "{";
 
-        std::stringstream ss;
+        stringstream ss;
         switch (*type) {
             case Piece:
             case Request:
                 uint32_t index;
                 uint32_t offset;
-                ss.write(payload.data(), payload.size());
+                ss.write(payload.data(), static_cast<std::streamsize>(payload.size()));
                 ss.read(reinterpret_cast<char*>(&index), 4);
                 index = ntohl(index);
                 ss.read(reinterpret_cast<char*>(&offset), 4);
                 offset = ntohl(offset);
-                result += ::to_string(index) + ","
-                        + ::to_string(offset) + "-"
-                        + ::to_string(offset + BLOCK_SIZE - 1);
+                result += std::to_string(index) + ","
+                        + std::to_string(offset) + "-"
+                        + std::to_string(offset + BLOCK_SIZE - 1);
                 break;
 
             default:
@@ -97,7 +102,7 @@ vector<char> Message::serialize() const {
     stringstream ss;
     ss.write(reinterpret_cast<const char*>(&len), 4);
     ss.write(reinterpret_cast<const char*>(&ty), 1);
-    ss.write(payload.data(), payload.size());
+    ss.write(payload.data(), static_cast<std::streamsize>(payload.size()));
     auto str = ss.str();
     return vector<char>{str.begin(), str.end()};
 }
@@ -106,7 +111,7 @@ optional<Message::Type> Message::try_from(uint8_t src) {
     if (src <= Message::Type::Cancel || src == Message::Type::Extension) {
         return static_cast<Message::Type>(src);
     } else {
-        cout << "\t" << cmn::urlencode(::to_string((uint16_t) src)) << endl;
+        cout << "\t" << cmn::urlencode(std::to_string((uint16_t) src)) << endl;
         return nullopt;
     }
 }

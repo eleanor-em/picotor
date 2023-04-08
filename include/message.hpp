@@ -10,22 +10,26 @@
 
 #include <common.hpp>
 #include <torrent.hpp>
+#include <utility>
 
-using namespace std;
 namespace ba = boost::asio;
 using ba::ip::tcp;
+using std::optional;
+using std::string;
+using std::vector;
+using cmn::Hash;
 
 struct Handshake {
-    string pstr{"BitTorrent protocol"};
+    string protocol_str{"BitTorrent protocol"};
     char extensions[8];
-    cmn::Hash info_hash;
+    Hash info_hash;
     string peer_id;
 
-    Handshake(cmn::Hash hash, const char* id): info_hash(hash), peer_id(id) {}
+    Handshake(cmn::Hash hash, const char* id): info_hash(std::move(hash)), peer_id(id), extensions{0} {}
 
     explicit Handshake(const vector<char>& data);
 
-    vector<char> serialise() const;
+    [[nodiscard]] vector<char> serialise() const;
 };
 
 struct Message {
@@ -51,15 +55,12 @@ struct Message {
         return Message{Message::Type::Interested, vector<char>{}};
     }
     [[nodiscard]] static Message request(const class::Piece& piece, const Block& block) {
-        uint32_t piece_index = htonl(piece.index());
-        uint32_t block_offset = htonl(block.offset());
-        uint32_t block_length = htonl(std::min(piece.size() - block.offset(), BLOCK_SIZE));
-        stringstream ss;
-        ss.write(reinterpret_cast<const char*>(&piece_index), 4);
-        ss.write(reinterpret_cast<const char*>(&block_offset), 4);
-        ss.write(reinterpret_cast<const char*>(&block_length), 4);
-        auto str = ss.str();
-        return Message{Message::Type::Request, vector<char>{str.begin(), str.end()}};
+        vector<char> data;
+        data.reserve(12);
+        cmn::push_bytes(&data, htonl(piece.index()));
+        cmn::push_bytes(&data, htonl(block.offset()));
+        cmn::push_bytes(&data, htonl(std::min(piece.size() - block.offset(), BLOCK_SIZE)));
+        return Message{Message::Type::Request, data};
     }
 
     [[nodiscard]] string to_string() const;
@@ -69,7 +70,7 @@ struct Message {
     vector<char> payload;
 
 private:
-    Message(Message::Type type_, vector<char> payload_): type(type_), payload(payload_) {}
+    Message(Message::Type type_, vector<char> payload_): type(type_), payload(std::move(payload_)) {}
 };
 
 #endif //PICOTOR_MESSAGE_HPP

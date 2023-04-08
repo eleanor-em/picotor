@@ -17,7 +17,16 @@
 
 namespace ba = boost::asio;
 using ba::ip::tcp;
-using namespace std;
+
+using std::optional;
+using std::shared_ptr;
+using std::string;
+using std::stringstream;
+using std::string_view;
+using std::vector;
+
+using cmn::Address;
+using cmn::Hash;
 
 class SingleFileTorrent {
 public:
@@ -26,31 +35,14 @@ public:
         return SingleFileTorrent(cmn::read_file(path));
     }
 
-    const string& announce() const {
-        return announce_;
-    }
+    [[nodiscard]] const string& announce() const { return announce_; }
+    [[nodiscard]] const string& filename() const { return filename_; }
+    [[nodiscard]] const Hash& info_hash() const { return info_hash_; }
+    [[nodiscard]] uint32_t file_length() const { return file_length_; }
+    [[nodiscard]] uint32_t pieces() const { return file_length_ / piece_length_; }
+    [[nodiscard]] uint32_t piece_size() const { return piece_length_; }
 
-    const string& filename() const {
-        return filename_;
-    }
-
-    const cmn::Hash& info_hash() const {
-        return info_hash_;
-    }
-
-    uint32_t file_length() const {
-        return file_length_;
-    }
-
-    uint32_t pieces() const {
-        return file_length_ / piece_length_;
-    }
-
-    uint32_t piece_size() const {
-        return piece_length_;
-    }
-
-    const cmn::Hash& piece_hash(uint32_t index) const {
+    [[nodiscard]] const Hash& piece_hash(uint32_t index) const {
         return piece_hashes_[index];
     }
 
@@ -59,21 +51,19 @@ private:
     string filename_;
     uint32_t piece_length_;
     uint32_t file_length_;
-    vector<cmn::Hash> piece_hashes_;
-    cmn::Hash info_hash_;
+    vector<Hash> piece_hashes_;
+    Hash info_hash_;
 };
 
 class TrackerResponse {
 public:
     explicit TrackerResponse(const string_view& data);
 
-    const vector<cmn::Address>& peers() const {
-        return peers_;
-    }
+    [[nodiscard]] const vector<Address>& peers() const { return peers_; }
 
 private:
-    uint32_t interval_;
-    vector<cmn::Address> peers_;
+    [[maybe_unused]] uint32_t interval_;
+    vector<Address> peers_;
 };
 
 const uint32_t BLOCK_SIZE = 1<<14;
@@ -103,10 +93,10 @@ inline const char* block_status_string(BlockStatus status) {
 
 class Block {
 public:
-    Block(uint32_t piece, uint32_t offset): piece_(piece), offset_(offset) {}
-    bool filled() const { return filled_; }
-    uint32_t offset() const { return offset_; }
-    uint32_t index() const { return offset_ / BLOCK_SIZE; }
+    explicit Block(uint32_t offset): offset_(offset), data_{0}, len_(0) {}
+    [[nodiscard]] bool filled() const { return filled_; }
+    [[nodiscard]] uint32_t offset() const { return offset_; }
+    [[nodiscard]] uint32_t index() const { return offset_ / BLOCK_SIZE; }
     void release() { reserved_ = false; }
 
 private:
@@ -114,10 +104,9 @@ private:
     bool reserved_ = false;
     char data_[BLOCK_SIZE];
     size_t len_;
-    uint32_t piece_;
     uint32_t offset_;
 
-    BlockStatus fill(stringstream& ss, size_t len) {
+    BlockStatus fill(stringstream& ss, std::streamsize len) {
         if (filled_) return BlockStatus::AlreadyFilled;
         ss.read(data_, len);
         len_ = len;
@@ -137,10 +126,10 @@ public:
     [[nodiscard]] cmn::Hash hash() const { return cmn::Hash::of(std::string{data_, size_}); }
     void free() { delete[] data_; }
 
-    char* data() const { return data_; }
-    uint32_t index() const { return piece_index_; }
-    uint32_t offset() const { return piece_index_ * size_; }
-    uint32_t size() const { return size_; }
+    [[nodiscard]] char* data() const { return data_; }
+    [[nodiscard]] uint32_t index() const { return piece_index_; }
+    [[nodiscard]] uint32_t offset() const { return piece_index_ * size_; }
+    [[nodiscard]] uint32_t size() const { return size_; }
 private:
     char* data_;
     uint32_t piece_index_;
@@ -151,14 +140,14 @@ class Piece {
 public:
     Piece(uint32_t index, uint32_t piece_size): index_(index), piece_size_(piece_size) {}
 
-    uint32_t index() const { return index_; }
-    uint32_t size() const { return piece_size_; }
+    [[nodiscard]] uint32_t index() const { return index_; }
+    [[nodiscard]] uint32_t size() const { return piece_size_; }
 
-    std::pair<BlockStatus, uint32_t> accept(const std::vector<char>& payload) {
+    [[nodiscard]] std::pair<BlockStatus, uint32_t> accept(const vector<char>& payload) {
         // 8 bytes used for initial data
         uint32_t data_len = payload.size() - 8;
-        std::stringstream ss;
-        ss.write(payload.data(), payload.size());
+        stringstream ss;
+        ss.write(payload.data(), static_cast<std::streamsize>(payload.size()));
 
         uint32_t piece_index;
         uint32_t offset;
@@ -173,11 +162,11 @@ public:
         return std::pair{blocks_[block_index]->fill(ss, data_len), block_index};
     }
 
-    std::shared_ptr<Block> next_block() {
+    shared_ptr<Block> next_block() {
         if (blocks_.size() < block_count()) {
             // if there's a block we haven't started yet, give them that
             auto offset = static_cast<uint32_t>(blocks_.size() * BLOCK_SIZE);
-            blocks_.push_back(std::make_shared<Block>(index_, offset));
+            blocks_.push_back(std::make_shared<Block>(offset));
             auto block = *(blocks_.end() - 1);
             block->reserved_ = true;
             return block;
@@ -193,7 +182,7 @@ public:
         return nullptr;
     }
 
-    bool is_complete() const {
+    [[nodiscard]] bool is_complete() const {
         auto all_filled = std::all_of(blocks_.cbegin(), blocks_.cend(),
                                       [](auto block) { return block->filled(); });
         return blocks_.size() == block_count() && all_filled;
@@ -217,12 +206,12 @@ public:
 private:
     uint32_t index_;
     uint32_t piece_size_;
-    std::vector<std::shared_ptr<Block>> blocks_;
+    vector<shared_ptr<Block>> blocks_;
 
     // cached result
     optional<CompletePiece> finalized_;
 
-    uint32_t block_count() const {
+    [[nodiscard]] uint32_t block_count() const {
         if (piece_size_ % BLOCK_SIZE == 0) {
             return piece_size_ / BLOCK_SIZE;
         } else {
