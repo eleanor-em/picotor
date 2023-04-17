@@ -43,19 +43,18 @@ Handshake::Handshake(const vector<char>& data): extensions{0} {
 
 vector<char> Handshake::serialise() const {
     stringstream ss;
-    char len = static_cast<char>(protocol_str.length());
+    const char len = static_cast<char>(protocol_str.length());
     ss.write(&len, 1);
     ss << protocol_str;
 
     ss.write(extensions, sizeof(extensions));
 
-    auto hash = info_hash.as_bytes();
+    const auto hash = info_hash.as_bytes();
     ss.write(hash.data(), static_cast<std::streamsize>(hash.size()));
 
     ss << peer_id;
 
-    auto str = ss.str();
-
+    const auto str = ss.str();
     return vector<char>{str.begin(), str.end()};
 }
 
@@ -66,7 +65,7 @@ Message::Message(const vector<char>& data) {
 
 string Message::to_string() const {
     if (type) {
-        string result = type_to_string(*type) + "{";
+        auto result = type_to_string(*type) + "{";
 
         stringstream ss;
         switch (*type) {
@@ -96,14 +95,14 @@ string Message::to_string() const {
 
 vector<char> Message::serialize() const {
     assert(type.has_value());
-    uint8_t ty = static_cast<char>(*type);
-    uint32_t len = htonl(payload.size() + 1);
+    const uint8_t ty = static_cast<char>(*type);
+    const uint32_t len = htonl(payload.size() + 1);
 
     stringstream ss;
     ss.write(reinterpret_cast<const char*>(&len), 4);
     ss.write(reinterpret_cast<const char*>(&ty), 1);
     ss.write(payload.data(), static_cast<std::streamsize>(payload.size()));
-    auto str = ss.str();
+    const auto str = ss.str();
     return vector<char>{str.begin(), str.end()};
 }
 

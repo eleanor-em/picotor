@@ -55,7 +55,7 @@ void Peer::async_next(const bs::error_code &ec) {
         return;
     }
 
-    Handshake result{recv_buffer_};
+    const Handshake result{recv_buffer_};
     peer_id_ = std::move(result.peer_id);
     log() << "successfully connected (" << addr_.to_string() << ")" << endl;
     while (!ctx_.result_queue->push(ResultPeerConnected{addr_}));
@@ -78,7 +78,7 @@ void Peer::async_read_len(const bs::error_code &ec) {
         return;
     }
 
-    uint32_t len = ntohl(*reinterpret_cast<const uint32_t*>(recv_buffer_.data()));
+    const uint32_t len = ntohl(*reinterpret_cast<const uint32_t*>(recv_buffer_.data()));
     if (len == 0) {
         // zero length means keepalive message
         async_read_message();
@@ -99,7 +99,7 @@ void Peer::async_read_len(const bs::error_code &ec) {
 void Peer::handle_piece(const Message& msg) {
     if (!piece_) return;
 
-    auto [result, index] = piece_->accept(msg.payload);
+    const auto [result, index] = piece_->accept(msg.payload);
     release_block(index);
 
     if (result != BlockStatus::Ok) {
@@ -108,9 +108,9 @@ void Peer::handle_piece(const Message& msg) {
             log() << "error accepting block: " << block_status_string(result) << endl;
         }
     } else if (piece_->is_complete()) {
-        auto final_piece = piece_->finalize();
+        const auto final_piece = piece_->finalize();
         blocks_.clear();
-        auto hash = final_piece.hash();
+        const auto hash = final_piece.hash();
         if (hash == ctx_.tor.piece_hash(piece_->index())) {
             while (!ctx_.result_queue->push(ResultPieceComplete{final_piece}));
         } else {
@@ -123,7 +123,7 @@ void Peer::handle_piece(const Message& msg) {
 }
 
 void Peer::async_handle_message() {
-    Message msg{recv_buffer_};
+    const Message msg{recv_buffer_};
     if (!msg.type) {
         return;
     }
@@ -170,12 +170,12 @@ void Peer::async_download() {
         if (piece_->is_complete()) return;
 
         // find a block to download
-        auto block = piece_->next_block();
+        const auto block = piece_->next_block();
         if (!block) return;
         blocks_.emplace(block->index(), block);
 
         // at this point, we have committed to a block; start a timer
-        auto timer = make_shared<ba::steady_timer>(ctx_.io, TIMEOUT_MS);
+        const auto timer = make_shared<ba::steady_timer>(ctx_.io, TIMEOUT_MS);
         timer->async_wait([timer, block, this](auto ec) {
             if (ec.failed()) {
                 log() << "error in block timeout: " << ec.message() << endl;
@@ -190,7 +190,7 @@ void Peer::async_download() {
         });
 
         // request the block
-        auto msg = Message::request(*piece_, *block);
+        const auto msg = Message::request(*piece_, *block);
         async_write_message(msg, [block, this](auto ec, auto _) {
             if (ec.failed()) {
                 log() << "failed receiving piece " << piece_->index() << ", block " << block->index() << ": "
@@ -230,8 +230,8 @@ public:
 
         // update time tracking
         now_ = chrono::system_clock::now();
-        auto duration = chrono::duration_cast<chrono::milliseconds>(now_ - last_report_).count();
-        auto elapsed_report = static_cast<double>(duration);
+        const auto duration = chrono::duration_cast<chrono::milliseconds>(now_ - last_report_).count();
+        const auto elapsed_report = static_cast<double>(duration);
 
         if (!missing_pieces_.empty() && elapsed_report > 500) {
             report_progress();
@@ -240,12 +240,12 @@ public:
 
     void report_progress() {
         last_report_ = now_;
-        auto duration = chrono::duration_cast<chrono::milliseconds>(now_ - start_).count();
+        const auto duration = chrono::duration_cast<chrono::milliseconds>(now_ - start_).count();
         elapsed_ = static_cast<double>(duration) / 1000;
 
-        auto downloaded = bytes_downloaded_ / 1024;
-        auto percent = downloaded / (static_cast<double>(ctx_.tor.file_length()) / 1024);
-        auto est_duration = elapsed_ / percent;
+        const auto downloaded = bytes_downloaded_ / 1024;
+        const auto percent = downloaded / (static_cast<double>(ctx_.tor.file_length()) / 1024);
+        const auto est_duration = elapsed_ / percent;
         log() << (ctx_.tor.pieces() - missing_pieces_.size()) << "/" << ctx_.tor.pieces()
               << " pieces complete in "
               << elapsed_ << " sec., "
@@ -277,8 +277,8 @@ public:
               << elapsed_ << " sec. (" << (static_cast<double>(ctx_.tor.file_length()) / (1024 * 1024)) / elapsed_
               << "MB/s)!"
               << std::endl;
-
     }
+
 private:
     const TorrentContext& ctx_;
     ofstream stream_;

@@ -14,7 +14,7 @@ SingleFileTorrent::SingleFileTorrent(const string_view &data) {
     announce_ = std::get<bencode::string_view>(dict.at("announce"));
 
     // ensure it's HTTP
-    auto start_pos = announce_.find("udp");
+    const auto start_pos = announce_.find("udp");
     if (start_pos != std::string::npos) {
         announce_.replace(start_pos, 3, "http");
     }

@@ -41,10 +41,7 @@ public:
     [[nodiscard]] uint32_t file_length() const { return file_length_; }
     [[nodiscard]] uint32_t pieces() const { return file_length_ / piece_length_; }
     [[nodiscard]] uint32_t piece_size() const { return piece_length_; }
-
-    [[nodiscard]] const Hash& piece_hash(uint32_t index) const {
-        return piece_hashes_[index];
-    }
+    [[nodiscard]] const Hash& piece_hash(uint32_t index) const { return piece_hashes_[index]; }
 
 private:
     string announce_;
@@ -131,7 +128,7 @@ public:
     [[nodiscard]] uint32_t offset() const { return piece_index_ * size_; }
     [[nodiscard]] uint32_t size() const { return size_; }
 private:
-    char* data_;
+    char* data_; // TODO: unique_ptr?
     uint32_t piece_index_;
     uint32_t size_;
 };
@@ -145,7 +142,7 @@ public:
 
     [[nodiscard]] std::pair<BlockStatus, uint32_t> accept(const vector<char>& payload) {
         // 8 bytes used for initial data
-        uint32_t data_len = payload.size() - 8;
+        const uint32_t data_len = payload.size() - 8;
         stringstream ss;
         ss.write(payload.data(), static_cast<std::streamsize>(payload.size()));
 
@@ -154,7 +151,7 @@ public:
         ss.read(reinterpret_cast<char*>(&piece_index), 4);
         piece_index = ntohl(piece_index);
         ss.read(reinterpret_cast<char*>(&offset), 4);
-        auto block_index = ntohl(offset) / BLOCK_SIZE;
+        const auto block_index = ntohl(offset) / BLOCK_SIZE;
 
         if (data_len > BLOCK_SIZE) return std::pair{BlockStatus::TooMuchData, block_index};
         if (piece_index != index_) return std::pair{BlockStatus::WrongPiece, block_index};
@@ -165,14 +162,14 @@ public:
     shared_ptr<Block> next_block() {
         if (blocks_.size() < block_count()) {
             // if there's a block we haven't started yet, give them that
-            auto offset = static_cast<uint32_t>(blocks_.size() * BLOCK_SIZE);
+            const auto offset = static_cast<uint32_t>(blocks_.size() * BLOCK_SIZE);
             blocks_.push_back(std::make_shared<Block>(offset));
-            auto block = *(blocks_.end() - 1);
+            const auto block = *(blocks_.end() - 1);
             block->reserved_ = true;
             return block;
         } else {
             // otherwise, look for one that's not reserved
-            for (auto& block : blocks_) {
+            for (const auto block : blocks_) {
                 if (!block->filled_ && !block->reserved_) {
                     block->reserved_ = true;
                     return block;
@@ -183,7 +180,7 @@ public:
     }
 
     [[nodiscard]] bool is_complete() const {
-        auto all_filled = std::all_of(blocks_.cbegin(), blocks_.cend(),
+        const auto all_filled = std::all_of(blocks_.cbegin(), blocks_.cend(),
                                       [](auto block) { return block->filled(); });
         return blocks_.size() == block_count() && all_filled;
     }
@@ -193,7 +190,7 @@ public:
             char *data = new char[piece_size_];
             char *ptr = data;
 
-            for (const auto &block: blocks_) {
+            for (const auto block: blocks_) {
                 std::copy(block->data_, block->data_ + block->len_, ptr);
                 ptr += block->len_;
             }

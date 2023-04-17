@@ -51,7 +51,7 @@ private:
     void handle_piece(const Message& msg);
 
     void release_block(uint32_t index) {
-        auto block = blocks_.find(index);
+        const auto block = blocks_.find(index);
         if (block != blocks_.end()) {
             block->second->release();
             blocks_.erase(block);

@@ -40,8 +40,8 @@ void start_run_connections(const SingleFileTorrent& tor, const TrackerResponse& 
     ba::io_context io;
 
     // initialise queues
-    auto work_queue = make_shared<boost::lockfree::queue<uint32_t>>(tor.pieces());
-    auto result_queue = make_shared<boost::lockfree::queue<Result>>(tor.pieces());
+    const auto work_queue = make_shared<boost::lockfree::queue<uint32_t>>(tor.pieces());
+    const auto result_queue = make_shared<boost::lockfree::queue<Result>>(tor.pieces());
 
     // work_queue initially contains every piece
     for (uint32_t i = 0; i < tor.pieces(); ++i) {
@@ -63,7 +63,7 @@ void start_run_connections(const SingleFileTorrent& tor, const TrackerResponse& 
 }
 
 int main() {
-    auto tor = SingleFileTorrent::from_file(tor_file);
-    auto response = send_request(tor);
+    const auto tor = SingleFileTorrent::from_file(tor_file);
+    const auto response = send_request(tor);
     start_run_connections(tor, response);
 }

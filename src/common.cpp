@@ -72,7 +72,7 @@ vector<char> cmn::hex_to_bytes(const string &hex) {
     bytes.reserve(hex.length() / 2);
 
     for (unsigned int i = 0; i < hex.length(); i += 2) {
-        auto byteString = hex.substr(i, 2);
+        const auto byteString = hex.substr(i, 2);
         char byte = (char) strtol(byteString.c_str(), nullptr, 16);
         bytes.emplace_back(byte);
     }
@@ -87,7 +87,7 @@ cmn::Hash cmn::Hash::of(const string &str) {
 string cmn::Hash::as_hex() const {
     ostringstream ss;
     ss << std::hex << std::setfill('0');
-    for (auto i : bytes_) {
+    for (const auto i : bytes_) {
         ss << std::setw(2) << static_cast<int>(static_cast<uint8_t>(i));
     }
     return ss.str();
